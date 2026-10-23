@@ -39,6 +39,7 @@ import AnalyzerSetup, {
   type AnalyzerSetupStep,
 } from "../AnalyzerSetup/AnalyzerSetup";
 import BridgePairing from "../BridgePairing/BridgePairing";
+import AnalyzerManualQcPanel from "../AnalyzerManualQc/AnalyzerManualQcPanel";
 
 import PageBreadCrumb from "../../common/PageBreadCrumb";
 import type { Analyzer, AnalyzerStatus } from "../types";
@@ -194,6 +195,11 @@ const AnalyzersList = () => {
       search: params.toString(),
     });
   };
+
+  // The analyzer whose "Record Manual QC" row is expanded (#3490).
+  const [manualQcAnalyzerId, setManualQcAnalyzerId] = useState<string | null>(
+    null,
+  );
 
   const openResults = (analyzer: Analyzer) => {
     if (!analyzer.id) {
@@ -727,7 +733,7 @@ const AnalyzersList = () => {
                         );
                         const unifiedStatus = analyzer?.status || "SETUP";
 
-                        return (
+                        const analyzerRow = (
                           <TableRow
                             {...getRowProps({ row })}
                             key={row.id}
@@ -851,6 +857,15 @@ const AnalyzersList = () => {
                                       }
                                       data-testid={`analyzer-action-quality-control-${row.id}`}
                                     />
+                                    <OverflowMenuItem
+                                      itemText={intl.formatMessage({
+                                        id: "analyzer.action.recordManualQc",
+                                      })}
+                                      onClick={() =>
+                                        setManualQcAnalyzerId(row.id)
+                                      }
+                                      data-testid={`analyzer-action-record-manual-qc-${row.id}`}
+                                    />
                                     {lifecycleActionsFor(unifiedStatus).map(
                                       (action) => (
                                         <OverflowMenuItem
@@ -877,6 +892,26 @@ const AnalyzersList = () => {
                             })}
                           </TableRow>
                         );
+                        if (manualQcAnalyzerId !== row.id) {
+                          return analyzerRow;
+                        }
+                        // "Record Manual QC" opens below the row, not in a modal.
+                        return [
+                          analyzerRow,
+                          <TableRow
+                            key={`${row.id}-manual-qc`}
+                            data-testid={`analyzer-manual-qc-row-${row.id}`}
+                          >
+                            <TableCell colSpan={headers.length}>
+                              <AnalyzerManualQcPanel
+                                analyzerId={row.id}
+                                entryPoint="ANALYZER_LIST"
+                                startWithForm
+                                onClose={() => setManualQcAnalyzerId(null)}
+                              />
+                            </TableCell>
+                          </TableRow>,
+                        ];
                       })}
                     </TableBody>
                   </Table>

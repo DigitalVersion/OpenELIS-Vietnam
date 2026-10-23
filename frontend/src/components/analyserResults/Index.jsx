@@ -20,6 +20,7 @@ import PageBreadCrumb from "../common/PageBreadCrumb";
 import CustomLabNumberInput from "../common/CustomLabNumberInput";
 import ImportIssuesPanel from "./ImportIssuesPanel";
 import { decisionKey, groupTestParts } from "./ResultParts";
+import AnalyzerManualQcPanel from "../analyzers/AnalyzerManualQc/AnalyzerManualQcPanel";
 
 const importIssuesBreadcrumbs = [
   { label: "home.label", link: "/" },
@@ -300,6 +301,16 @@ const Index = () => {
             </Section>
           </Column>
         </Grid>
+        {selectedAnalyzerId && (
+          <Grid fullWidth={true}>
+            <Column lg={16} md={8} sm={4}>
+              <AnalyzerManualQcPanel
+                analyzerId={selectedAnalyzerId}
+                entryPoint="ANALYZER_IMPORT"
+              />
+            </Column>
+          </Grid>
+        )}
       </Stack>
       <div className="orderLegendBody">
         {notificationVisible === true ? <AlertDialog /> : ""}

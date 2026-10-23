@@ -37,6 +37,7 @@ import {
 import CustomDatePicker from "../../common/CustomDatePicker";
 import { ConfigurationContext } from "../../layout/Layout";
 import StatisticsConfigSection from "./StatisticsConfigSection";
+import QcFrequencyFields from "./QcFrequencyFields";
 import PageTitle from "../../common/PageTitle/PageTitle";
 import PageBreadCrumb from "../../common/PageBreadCrumb";
 import "./ControlLotSetup.css";
@@ -125,6 +126,24 @@ const ControlLotSetup = () => {
     testId: Yup.string().required(
       intl.formatMessage({ id: "qc.controlLot.validation.testRequired" }),
     ),
+    // Manual QC frequency (#3490): every-N-hours needs its N, and a lot cannot
+    // require QC without saying how often.
+    qcFrequencyHours: Yup.mixed().when("qcFrequencyType", (type, schema) =>
+      type === "CUSTOM_HOURS"
+        ? schema.test(
+            "hours",
+            intl.formatMessage({ id: "qc.controlLot.frequency.hoursRequired" }),
+            (value) => Number.isInteger(value) && value >= 1 && value <= 720,
+          )
+        : schema,
+    ),
+    qcFrequencyType: Yup.string().when("qcRequired", (required, schema) =>
+      required
+        ? schema.required(
+            intl.formatMessage({ id: "qc.controlLot.frequency.typeRequired" }),
+          )
+        : schema,
+    ),
   });
 
   // Load existing lot for edit
@@ -189,6 +208,9 @@ const ControlLotSetup = () => {
             : "",
         testId: existingLot.testId != null ? String(existingLot.testId) : "",
         isActive: existingLot.status === "ACTIVE",
+        qcFrequencyType: existingLot.qcFrequencyType || "",
+        qcFrequencyHours: existingLot.qcFrequencyHours ?? "",
+        qcRequired: !!existingLot.qcRequired,
       };
     }
     return {
@@ -199,6 +221,9 @@ const ControlLotSetup = () => {
       analyzerId: "",
       testId: "",
       isActive: true,
+      qcFrequencyType: "",
+      qcFrequencyHours: "",
+      qcRequired: false,
     };
   };
 
@@ -255,6 +280,10 @@ const ControlLotSetup = () => {
       manufacturerStdDev: statisticsConfig.standardDeviation,
       activationDate: new Date().toISOString(),
       status: values.isActive ? "ACTIVE" : "EXPIRED",
+      qcFrequencyType: values.qcFrequencyType || null,
+      qcFrequencyHours:
+        values.qcFrequencyHours === "" ? null : values.qcFrequencyHours,
+      qcRequired: !!values.qcFrequencyType && !!values.qcRequired,
     };
 
     postToOpenElisServerFullResponse(
@@ -553,6 +582,14 @@ const ControlLotSetup = () => {
                   />
                 </FormGroup>
               </Column>
+
+              {/* Manual QC frequency (#3490) */}
+              <QcFrequencyFields
+                values={values}
+                errors={errors}
+                touched={touched}
+                setFieldValue={setFieldValue}
+              />
 
               {/* Statistics Configuration (FR-003, FR-004, FR-005) */}
               <Column lg={16} md={8} sm={4}>
