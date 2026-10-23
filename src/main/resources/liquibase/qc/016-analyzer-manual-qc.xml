@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+    http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.8.xsd">
+
+    <!-- Analyzer manual QC (#3490). A technician runs a control on a bench
+         analyzer and records Pass or Fail against one of that analyzer's control
+         lots. The run is an ordinary qc_result row (source MANUAL, instrument_id
+         set), so the QC dashboard, the instrument views and the failure signal all
+         see it without a second table. -->
+
+    <!-- How often a control lot must have a passing manual run. Lives on the lot,
+         as in the Batch Workplan spec v1.1, because a lot is already scoped to one
+         (test, instrument) pair. -->
+    <changeSet author="oe" id="analyzer-manual-qc-01-control-lot-frequency">
+        <addColumn schemaName="clinlims" tableName="qc_control_lot">
+            <column name="qc_frequency_type" type="VARCHAR(20)"/>
+            <column name="qc_frequency_hours" type="INTEGER"/>
+            <column name="qc_required" type="BOOLEAN" defaultValueBoolean="false">
+                <constraints nullable="false"/>
+            </column>
+        </addColumn>
+        <sql>
+            ALTER TABLE clinlims.qc_control_lot
+            ADD CONSTRAINT chk_qc_control_lot_frequency_type
+            CHECK (qc_frequency_type IS NULL OR qc_frequency_type IN ('DAILY', 'PER_SHIFT', 'CUSTOM_HOURS'));
+            ALTER TABLE clinlims.qc_control_lot
+            ADD CONSTRAINT chk_qc_control_lot_frequency_hours
+            CHECK (qc_frequency_hours IS NULL OR qc_frequency_hours BETWEEN 1 AND 720);
+        </sql>
+        <rollback>
+            <sql>
+                ALTER TABLE clinlims.qc_control_lot DROP CONSTRAINT chk_qc_control_lot_frequency_hours;
+                ALTER TABLE clinlims.qc_control_lot DROP CONSTRAINT chk_qc_control_lot_frequency_type;
+            </sql>
+            <dropColumn schemaName="clinlims" tableName="qc_control_lot" columnName="qc_required"/>
+            <dropColumn schemaName="clinlims" tableName="qc_control_lot" columnName="qc_frequency_hours"/>
+            <dropColumn schemaName="clinlims" tableName="qc_control_lot" columnName="qc_frequency_type"/>
+        </rollback>
+    </changeSet>
+
+    <!-- Where in the UI a manual analyzer run was recorded. Null for every other
+         row (analyzer import, bench capture). -->
+    <changeSet author="oe" id="analyzer-manual-qc-02-result-entry-point">
+        <addColumn schemaName="clinlims" tableName="qc_result">
+            <column name="entry_point" type="VARCHAR(20)"/>
+        </addColumn>
+        <sql>
+            ALTER TABLE clinlims.qc_result
+            ADD CONSTRAINT chk_qc_result_entry_point
+            CHECK (entry_point IS NULL OR entry_point IN ('ANALYZER_IMPORT', 'ANALYZER_LIST'));
+        </sql>
+        <rollback>
+            <sql>ALTER TABLE clinlims.qc_result DROP CONSTRAINT chk_qc_result_entry_point;</sql>
+            <dropColumn schemaName="clinlims" tableName="qc_result" columnName="entry_point"/>
+        </rollback>
+    </changeSet>
+
+    <!-- A manual check on an analyzer may be Pass/Fail with no number. Only a
+         MANUAL row that names an analyzer gets this; a bench MANUAL row (no
+         analyzer) still needs a value, and no row may have neither a value nor an
+         outcome. -->
+    <changeSet author="oe" id="analyzer-manual-qc-03-result-shape">
+        <preConditions onFail="MARK_RAN">
+            <sqlCheck expectedResult="1">
+                SELECT COUNT(*) FROM pg_constraint WHERE conname = 'chk_qc_result_source_shape'
+            </sqlCheck>
+        </preConditions>
+        <sql>
+            ALTER TABLE clinlims.qc_result DROP CONSTRAINT chk_qc_result_source_shape;
+            ALTER TABLE clinlims.qc_result
+            ADD CONSTRAINT chk_qc_result_source_shape
+            CHECK (
+                (source IN ('RDT', 'ASTM') AND result_value IS NULL AND qualitative_outcome IS NOT NULL)
+                OR
+                (source = 'MANUAL' AND instrument_id IS NOT NULL AND result_value IS NULL
+                    AND qualitative_outcome IS NOT NULL)
+                OR
+                (source &lt;&gt; 'RDT' AND result_value IS NOT NULL)
+            );
+        </sql>
+        <rollback>
+            <sql>
+                ALTER TABLE clinlims.qc_result DROP CONSTRAINT chk_qc_result_source_shape;
+                ALTER TABLE clinlims.qc_result
+                ADD CONSTRAINT chk_qc_result_source_shape
+                CHECK (
+                    (source IN ('RDT', 'ASTM') AND result_value IS NULL AND qualitative_outcome IS NOT NULL)
+                    OR
+                    (source &lt;&gt; 'RDT' AND result_value IS NOT NULL)
+                );
+            </sql>
+        </rollback>
+    </changeSet>
+</databaseChangeLog>

@@ -14,6 +14,7 @@ import org.openelisglobal.qc.dao.QCResultDAO;
 import org.openelisglobal.qc.dao.QCStatisticsDAO;
 import org.openelisglobal.qc.event.BenchControlFailedEvent;
 import org.openelisglobal.qc.event.QCResultCreatedEvent;
+import org.openelisglobal.qc.form.AnalyzerManualQcForm;
 import org.openelisglobal.qc.form.BenchQCCaptureForm;
 import org.openelisglobal.qc.service.calculator.StatisticsCalculator;
 import org.openelisglobal.qc.valueholder.QCControlLot;
@@ -311,6 +312,84 @@ public class QCResultServiceImpl extends BaseObjectServiceImpl<QCResult, String>
                 "Recorded analyzer QC result " + id + " outcome=" + outcome);
         if (outcome.isFailing()) {
             eventPublisher.publishEvent(new BenchControlFailedEvent(this, result));
+        }
+        return result;
+    }
+
+    /**
+     * Clock skew tolerated between the browser that stamps a run time and this
+     * server before the run counts as being in the future.
+     */
+    private static final long FUTURE_TOLERANCE_MINUTES = 5;
+
+    @Override
+    @Transactional
+    public QCResult createAnalyzerManualQCResult(String analyzerId, AnalyzerManualQcForm run, int recorderUserId,
+            int performedByUserId) throws IllegalArgumentException {
+        QCQualitativeOutcome outcome = run.outcome();
+        if (outcome == null || !outcome.isValidFor(QCSource.MANUAL)) {
+            throw new IllegalArgumentException("A manual analyzer control is PASS or FAIL, got: " + outcome);
+        }
+        if (run.entryPoint() == null) {
+            throw new IllegalArgumentException("A manual analyzer control needs its entry point");
+        }
+        if (StringUtils.isBlank(run.controlLotId())) {
+            throw new IllegalArgumentException("A manual analyzer control needs a control lot");
+        }
+        QCControlLot controlLot = requireUsableLot(run.controlLotId());
+        // A run is plotted in its lot's history and evaluated in its lot's Westgard
+        // windows, so it may only be recorded against this analyzer's own lot.
+        if (!StringUtils.equals(analyzerId, controlLot.getInstrumentId())) {
+            throw new IllegalArgumentException(
+                    "Control lot " + controlLot.getId() + " does not belong to analyzer " + analyzerId);
+        }
+        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime runAt = run.runDateTime() != null ? run.runDateTime() : now;
+        if (runAt.isAfter(now.plusMinutes(FUTURE_TOLERANCE_MINUTES))) {
+            throw new IllegalArgumentException("A QC run cannot be dated in the future");
+        }
+
+        BigDecimal resultValue = run.resultValue();
+        BigDecimal zScore = null;
+        if (resultValue != null) {
+            QCStatistics statistics = statisticsDAO.findLatestByControlLot(controlLot.getId());
+            if (statistics != null) {
+                zScore = computeZScore(resultValue, statistics);
+            }
+        }
+
+        QCResult result = new QCResult();
+        result.setId(UUID.randomUUID().toString());
+        result.setSource(QCSource.MANUAL);
+        result.setEntryPoint(run.entryPoint());
+        result.setQualitativeOutcome(outcome);
+        result.setTestId(controlLot.getTestId());
+        result.setInstrumentId(analyzerId);
+        result.setControlLotId(controlLot.getId());
+        result.setControlLabel(controlLot.getProductName());
+        result.setResultValue(resultValue);
+        result.setUnitOfMeasure(resolveUnit(null, controlLot.getTestId()));
+        result.setZScore(zScore);
+        result.setRunDateTime(Timestamp.valueOf(runAt));
+        result.setResultStatus(outcome.isFailing() ? "REJECTED" : "ACCEPTED");
+        result.setNonConformityFlag(outcome.isFailing());
+        result.setExternalNotes(StringUtils.trimToNull(run.notes()));
+        // Recorder and performer differ under delegated entry: the audit columns
+        // keep who saved the row, the technician column keeps who ran the control.
+        result.setSystemUserId(recorderUserId);
+        result.setSysUserId(String.valueOf(recorderUserId));
+        result.setTechnicianId(performedByUserId);
+
+        String id = resultDAO.insert(result);
+        LogEvent.logInfo(this.getClass().getName(), "createAnalyzerManualQCResult", "Recorded manual QC result " + id
+                + " on analyzer " + analyzerId + " outcome=" + outcome + " via " + run.entryPoint());
+
+        // Same single-signal rule as a bench run: a Fail goes to the failure route,
+        // an in-control run with a value goes to rule evaluation.
+        if (outcome.isFailing()) {
+            eventPublisher.publishEvent(new BenchControlFailedEvent(this, result));
+        } else {
+            publishForRuleEvaluation(controlLot, result);
         }
         return result;
     }

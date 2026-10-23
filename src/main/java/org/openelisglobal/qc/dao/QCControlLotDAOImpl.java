@@ -203,4 +203,22 @@ public class QCControlLotDAOImpl extends BaseDAOImpl<QCControlLot, String> imple
             throw new LIMSRuntimeException("Error retrieving distinct test-instrument pairs from control lots", e);
         }
     }
+
+    @Override
+    public List<QCControlLot> getUsableByInstrument(String instrumentId) throws LIMSRuntimeException {
+        try {
+            CriteriaBuilder cb = entityManager.getCriteriaBuilder();
+            CriteriaQuery<QCControlLot> cq = cb.createQuery(QCControlLot.class);
+            Root<QCControlLot> root = cq.from(QCControlLot.class);
+            Timestamp now = Timestamp.from(Instant.now());
+            cq.where(cb.equal(root.get("instrumentId"), instrumentId),
+                    root.get("status").in(List.of("ACTIVE", "ESTABLISHMENT")),
+                    cb.or(cb.isNull(root.get("expirationDate")),
+                            cb.greaterThanOrEqualTo(root.get("expirationDate"), now)));
+            cq.orderBy(cb.asc(root.get("productName")), cb.asc(root.get("controlLevel")));
+            return entityManager.createQuery(cq).getResultList();
+        } catch (RuntimeException e) {
+            throw new LIMSRuntimeException("Error retrieving usable control lots by instrument", e);
+        }
+    }
 }

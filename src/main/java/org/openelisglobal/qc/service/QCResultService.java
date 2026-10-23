@@ -5,6 +5,7 @@ import java.sql.Timestamp;
 import java.time.LocalDateTime;
 import java.util.List;
 import org.openelisglobal.common.service.BaseObjectService;
+import org.openelisglobal.qc.form.AnalyzerManualQcForm;
 import org.openelisglobal.qc.form.BenchQCCaptureForm;
 import org.openelisglobal.qc.valueholder.QCQualitativeOutcome;
 import org.openelisglobal.qc.valueholder.QCResult;
@@ -88,6 +89,25 @@ public interface QCResultService extends BaseObjectService<QCResult, String> {
      */
     QCResult createAnalyzerQualitativeQCResult(String analyzerId, String testId, String controlLotId,
             QCQualitativeOutcome outcome, LocalDateTime timestamp) throws IllegalArgumentException;
+
+    /**
+     * Record a manual QC run on an analyzer (#3490). The row is source MANUAL with
+     * the analyzer as instrument, so it appears in the instrument views and raises
+     * the same failure signal as any other manual control. A value is optional:
+     * with one, against a lot that has statistics, the run gets a z-score and goes
+     * to Westgard evaluation.
+     *
+     * @param analyzerId        the analyzer the control was run on
+     * @param run               the run as entered
+     * @param recorderUserId    the session user saving the run
+     * @param performedByUserId the user who ran the control (may equal the
+     *                          recorder)
+     * @throws IllegalArgumentException if the outcome is not PASS/FAIL, the lot is
+     *                                  missing, unusable or belongs to another
+     *                                  analyzer, or the run time is in the future
+     */
+    QCResult createAnalyzerManualQCResult(String analyzerId, AnalyzerManualQcForm run, int recorderUserId,
+            int performedByUserId) throws IllegalArgumentException;
 
     /**
      * Flat list of bench control runs in a window for the accreditation export

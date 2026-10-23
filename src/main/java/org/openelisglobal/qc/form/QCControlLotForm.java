@@ -1,6 +1,9 @@
 package org.openelisglobal.qc.form;
 
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.AssertTrue;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
@@ -8,6 +11,7 @@ import jakarta.validation.constraints.Positive;
 import java.sql.Timestamp;
 import org.openelisglobal.common.form.BaseForm;
 import org.openelisglobal.qc.valueholder.QCControlLot;
+import org.openelisglobal.qc.valueholder.QCFrequencyType;
 import org.openelisglobal.validation.annotations.SafeHtml;
 
 /**
@@ -75,6 +79,15 @@ public class QCControlLotForm extends BaseForm {
 
     @SafeHtml(level = SafeHtml.SafeListLevel.NONE)
     private String externalNotes = "";
+
+    // Manual QC frequency (#3490).
+    private QCFrequencyType qcFrequencyType;
+
+    @Min(1)
+    @Max(720)
+    private Integer qcFrequencyHours;
+
+    private Boolean qcRequired = false;
 
     @Valid
     private QCControlLot controlLot;
@@ -224,6 +237,42 @@ public class QCControlLotForm extends BaseForm {
 
     public void setExternalNotes(String externalNotes) {
         this.externalNotes = externalNotes;
+    }
+
+    public QCFrequencyType getQcFrequencyType() {
+        return qcFrequencyType;
+    }
+
+    public void setQcFrequencyType(QCFrequencyType qcFrequencyType) {
+        this.qcFrequencyType = qcFrequencyType;
+    }
+
+    public Integer getQcFrequencyHours() {
+        return qcFrequencyHours;
+    }
+
+    public void setQcFrequencyHours(Integer qcFrequencyHours) {
+        this.qcFrequencyHours = qcFrequencyHours;
+    }
+
+    public Boolean getQcRequired() {
+        return qcRequired;
+    }
+
+    public void setQcRequired(Boolean qcRequired) {
+        this.qcRequired = qcRequired;
+    }
+
+    /**
+     * CUSTOM_HOURS has no meaning without its hours, and requiring QC without
+     * saying how often would make every run overdue.
+     */
+    @AssertTrue(message = "QC frequency is incomplete")
+    public boolean isQcFrequencyComplete() {
+        if (qcFrequencyType == QCFrequencyType.CUSTOM_HOURS && qcFrequencyHours == null) {
+            return false;
+        }
+        return !Boolean.TRUE.equals(qcRequired) || qcFrequencyType != null;
     }
 
     public QCControlLot getControlLot() {

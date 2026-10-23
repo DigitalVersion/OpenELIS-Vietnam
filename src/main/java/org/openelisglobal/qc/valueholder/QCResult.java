@@ -111,6 +111,11 @@ public class QCResult extends BaseObject<String> {
     @Column(name = "external_notes", columnDefinition = "TEXT")
     private String externalNotes;
 
+    // Set only on a manual analyzer run (#3490): which screen recorded it.
+    @Enumerated(EnumType.STRING)
+    @Column(name = "entry_point", length = 20)
+    private QCEntryPoint entryPoint;
+
     @Column(name = "sys_user_id", nullable = false)
     private Integer systemUserId;
 
@@ -213,6 +218,14 @@ public class QCResult extends BaseObject<String> {
 
     public void setExternalNotes(String externalNotes) {
         this.externalNotes = externalNotes;
+    }
+
+    public QCEntryPoint getEntryPoint() {
+        return entryPoint;
+    }
+
+    public void setEntryPoint(QCEntryPoint entryPoint) {
+        this.entryPoint = entryPoint;
     }
 
     public Integer getSystemUserId() {

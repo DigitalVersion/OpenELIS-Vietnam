@@ -81,6 +81,18 @@ public class QCControlLot extends BaseObject<String> {
     @Column(name = "status", nullable = false, length = 50)
     private String status = "ESTABLISHMENT";
 
+    // Manual QC frequency (#3490). Null type means no frequency rule.
+    @Enumerated(EnumType.STRING)
+    @Column(name = "qc_frequency_type", length = 20)
+    private QCFrequencyType qcFrequencyType;
+
+    @Column(name = "qc_frequency_hours")
+    private Integer qcFrequencyHours;
+
+    // Whether an overdue manual run raises a warning for this lot.
+    @Column(name = "qc_required", nullable = false)
+    private Boolean qcRequired = false;
+
     @Column(name = "sys_user_id", nullable = false)
     private Integer systemUserId;
 
@@ -222,5 +234,30 @@ public class QCControlLot extends BaseObject<String> {
 
     public void setSystemUserId(Integer systemUserId) {
         this.systemUserId = systemUserId;
+    }
+
+    public QCFrequencyType getQcFrequencyType() {
+        return qcFrequencyType;
+    }
+
+    public void setQcFrequencyType(QCFrequencyType qcFrequencyType) {
+        this.qcFrequencyType = qcFrequencyType;
+    }
+
+    public Integer getQcFrequencyHours() {
+        return qcFrequencyHours;
+    }
+
+    public void setQcFrequencyHours(Integer qcFrequencyHours) {
+        this.qcFrequencyHours = qcFrequencyHours;
+    }
+
+    public Boolean getQcRequired() {
+        return qcRequired;
+    }
+
+    public void setQcRequired(Boolean qcRequired) {
+        // The column is NOT NULL; a form that omits the flag means "not required".
+        this.qcRequired = qcRequired != null && qcRequired;
     }
 }

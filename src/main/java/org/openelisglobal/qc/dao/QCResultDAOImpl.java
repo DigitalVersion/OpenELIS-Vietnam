@@ -179,7 +179,7 @@ public class QCResultDAOImpl extends BaseDAOImpl<QCResult, String> implements QC
             throws LIMSRuntimeException {
         String hql = "SELECT r.testSectionId, r.testId, r.source, COUNT(r.id),"
                 + " SUM(CASE WHEN r.qualitativeOutcome IN (:failing) THEN 1 ELSE 0 END), MAX(r.runDateTime)"
-                + " FROM QCResult r WHERE r.source IN (:sources)"
+                + " FROM QCResult r WHERE r.source IN (:sources) AND r.instrumentId IS NULL"
                 + " AND r.runDateTime >= :startDate AND r.runDateTime < :endDate"
                 + " GROUP BY r.testSectionId, r.testId, r.source ORDER BY MAX(r.runDateTime) DESC";
         try {
@@ -212,8 +212,10 @@ public class QCResultDAOImpl extends BaseDAOImpl<QCResult, String> implements QC
             CriteriaBuilder cb = entityManager.getCriteriaBuilder();
             CriteriaQuery<QCResult> cq = cb.createQuery(QCResult.class);
             Root<QCResult> root = cq.from(QCResult.class);
+            // A manual run on an analyzer (#3490) belongs to that analyzer's views, not
+            // to the bench register.
             cq.where(root.get("source").in(source == null ? QCSource.BENCH_SOURCES : List.of(source)),
-                    cb.greaterThanOrEqualTo(root.get("runDateTime"), startDate),
+                    cb.isNull(root.get("instrumentId")), cb.greaterThanOrEqualTo(root.get("runDateTime"), startDate),
                     cb.lessThan(root.get("runDateTime"), endDate));
             cq.orderBy(cb.desc(root.get("runDateTime")));
             return entityManager.createQuery(cq).setMaxResults(maxRows).getResultList();
@@ -232,6 +234,38 @@ public class QCResultDAOImpl extends BaseDAOImpl<QCResult, String> implements QC
             return entityManager.createQuery(cq).getResultList();
         } catch (RuntimeException e) {
             throw new LIMSRuntimeException("Error retrieving distinct instrument IDs from QC results", e);
+        }
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<QCResult> findManualByInstrument(String instrumentId, int maxRows) throws LIMSRuntimeException {
+        try {
+            CriteriaBuilder cb = entityManager.getCriteriaBuilder();
+            CriteriaQuery<QCResult> cq = cb.createQuery(QCResult.class);
+            Root<QCResult> root = cq.from(QCResult.class);
+            cq.where(cb.equal(root.get("instrumentId"), instrumentId), cb.equal(root.get("source"), QCSource.MANUAL));
+            cq.orderBy(cb.desc(root.get("runDateTime")), cb.desc(root.get("lastupdated")));
+            return entityManager.createQuery(cq).setMaxResults(maxRows).getResultList();
+        } catch (RuntimeException e) {
+            throw new LIMSRuntimeException("Error retrieving manual QC runs for analyzer", e);
+        }
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<Object[]> findLatestManualPassPerLot(String instrumentId) throws LIMSRuntimeException {
+        String hql = "SELECT r.controlLotId, MAX(r.runDateTime) FROM QCResult r"
+                + " WHERE r.instrumentId = :instrumentId AND r.source = :source"
+                + " AND r.qualitativeOutcome = :pass AND r.resultStatus <> 'REJECTED'" + " GROUP BY r.controlLotId";
+        try {
+            var query = entityManager.createQuery(hql, Object[].class);
+            query.setParameter("instrumentId", instrumentId);
+            query.setParameter("source", QCSource.MANUAL);
+            query.setParameter("pass", QCQualitativeOutcome.PASS);
+            return query.getResultList();
+        } catch (RuntimeException e) {
+            throw new LIMSRuntimeException("Error retrieving latest passing manual QC per control lot", e);
         }
     }
 }

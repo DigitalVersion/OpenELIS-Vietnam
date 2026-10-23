@@ -45,6 +45,9 @@
   <!-- Analyzer controls that report an answer, judged against the QC target -->
   <include file="liquibase/qc/015-analyzer-qualitative-qc.xml" />
 
+  <!-- Analyzer manual QC: frequency per control lot, entry point, Pass/Fail-only analyzer checks (#3490) -->
+  <include file="liquibase/qc/016-analyzer-manual-qc.xml" />
+
   <!-- QA menu tree, every row of it (OGC-688) -->
   <include file="liquibase/qa/001-add-qa-menu-items.xml" />
 

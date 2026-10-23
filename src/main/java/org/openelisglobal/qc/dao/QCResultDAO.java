@@ -84,4 +84,18 @@ public interface QCResultDAO extends BaseDAO<QCResult, String> {
      */
     List<QCResult> findBenchResults(Timestamp startDate, Timestamp endDate, QCSource source, int maxRows)
             throws LIMSRuntimeException;
+
+    /**
+     * Manual QC runs recorded against an analyzer (#3490), newest first. Rows the
+     * analyzer itself transmitted (source ASTM) are not included: manual QC status
+     * is independent of automated QC on the same analyzer.
+     */
+    List<QCResult> findManualByInstrument(String instrumentId, int maxRows) throws LIMSRuntimeException;
+
+    /**
+     * For each control lot of an analyzer, the time of its latest passing manual
+     * run (#3490): the technician judged it Pass and Westgard evaluation did not
+     * reject it. Returns {controlLotId, maxRunDateTime}.
+     */
+    List<Object[]> findLatestManualPassPerLot(String instrumentId) throws LIMSRuntimeException;
 }

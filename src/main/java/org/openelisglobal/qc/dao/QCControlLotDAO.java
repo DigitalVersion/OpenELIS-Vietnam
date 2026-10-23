@@ -70,4 +70,11 @@ public interface QCControlLotDAO extends BaseDAO<QCControlLot, String> {
      * Get all distinct (testId, instrumentId) pairs from control lots.
      */
     List<TestInstrumentPair> findDistinctTestInstrumentPairs() throws LIMSRuntimeException;
+
+    /**
+     * Control lots of an analyzer that can take a new run: ACTIVE or ESTABLISHMENT,
+     * and not expired (#3490). Establishment lots are included because a manual run
+     * is how a new lot collects its first results.
+     */
+    List<QCControlLot> getUsableByInstrument(String instrumentId) throws LIMSRuntimeException;
 }
